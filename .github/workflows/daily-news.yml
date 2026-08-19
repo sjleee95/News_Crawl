@@ -1,0 +1,53 @@
+name: Daily Naver News
+
+on:
+  schedule:
+    # Asia/Seoul 기준 매일 오전 9시. 실행 시각 변경은 아래 cron 한 줄만 수정합니다.
+    - cron: '0 9 * * *'
+      timezone: Asia/Seoul
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-naver-news
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Crawl today's news
+        run: npm run crawl
+
+      - name: Commit and push changed CSV
+        shell: bash
+        run: |
+          if [[ -z "$(git status --porcelain -- data)" ]]; then
+            echo "CSV 내용이 같아 커밋하지 않습니다."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git commit -m "data: update daily news $(TZ=Asia/Seoul date +%F)"
+          git push
